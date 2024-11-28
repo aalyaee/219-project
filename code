@@ -1,0 +1,389 @@
+#Reading the las file
+# you need to pip installl lasio
+well=la.read('1051661071.las')
+#Conversion of las file to dataframe
+df=well.df()
+df=df.reset_index()
+#Cleansing na values
+df_dropped=df.dropna(axis=0,how='any')
+#Selecting valid range values from selective logs
+df_filt1 = df_dropped.loc[(df_dropped.CNPOR > -15) & (df_dropped.CNPOR <= 50)]
+df_filt2 = df_filt1.loc[(df_dropped.GR > 0) & (df_dropped.GR <= 150)]
+df_filt3 = df_filt2.loc[(df_dropped.RHOB> 1) &
+(df_dropped.RHOB<= 3)]
+df_filt = df_filt3.loc[(df_dropped.DT > 30) & (df_dropped.DT <=
+140)]
+df_filt = df_filt3.loc[(df_dropped.RILD > 0.2) &
+(df_dropped.RILD <= 2000)]
+#Options to display max number of columns pd.set_option('display.max_columns', None) # Display statistics of the data print(df_filt.describe(include='all'))
+#### DATA VISUALIZATION
+# Set up the scatter plot Neutron porosity and Density log plt.scatter(x='CNPOR', y='RHOB', data=df, c='GR', vmin=0, vmax=250, cmap='rainbow')
+# Change the X and Y ranges
+plt.xlim(-15, 45)
+# For the y axis, we need to flip by passing in the scale values in reverse order
+plt.ylim(3.0, 1.0)
+# Add in labels for the axes
+plt.ylabel('Bulk Density (DEN) - g/cc', fontsize=14) plt.xlabel('Neutron Porosity (NEU) - %', fontsize=14)
+# Make the colorbar show plt.colorbar(label='Gamma Ray - API')
+plt.savefig('scatterplot.png', dpi=300)
+plt.show()
+# Creating Histograms of GR
+plt.hist(df_filt['GR'], bins=30, color='green', alpha=0.5, edgecolor='black')
+plt.xlabel('Gamma Ray - API', fontsize=14) plt.ylabel('Frequency', fontsize=14)
+plt.xlim(0,200)
+plt.savefig('histogram(GR).png', dpi=300)
+plt.show()
+#Creating Histogram of RILD
+plt.hist(df_filt['RILD'], bins=1000, color='red', alpha=0.5,
+edgecolor='black')
+plt.xlabel('RILD', fontsize=14)
+plt.ylabel('Frequency', fontsize=14)
+plt.semilogx()
+plt.savefig('histogram(RILD).png', dpi=300)
+plt.show()
+#Changing the DEPT to DEPTH
+df_filt.rename(columns={'DEPT':'DEPTH'},inplace=True)
+#Creating Subplots to plot all logs in tracks fig, axes = plt.subplots(figsize=(10,10))
+#Defining name of the logs
+curve_names = ['Gamma', 'Deep Res', 'Shallow Res','Density',
+'Neutron','Vsh']
+#Set up the plot axes
+ax1 = plt.subplot2grid((1,4), (0,0), rowspan=1, colspan = 1) ax2 = plt.subplot2grid((1,4), (0,1), rowspan=1, colspan = 1) ax3=ax2.twiny()
+ax4 = plt.subplot2grid((1,4), (0,2), rowspan=1, colspan = 1) ax5 = ax4.twiny()
+ax6=plt.subplot2grid((1,4), (0,3), rowspan=1, colspan = 1)
+
+#Set up the individual log tracks / subplots
+ax1.plot("GR", "DEPTH", data = df_filt, color = "green", lw = 0.5)
+ax1.fill_betweenx(df_filt['DEPTH'], 55, df_filt['GR'], where=df_filt['GR']<=55, facecolor='yellow') ax1.fill_betweenx(df_filt['DEPTH'], df_filt['GR'], 55, where=df_filt['GR']>=60, facecolor='green')
+ax1.set_xlim(0, 150) ax1.spines['top'].set_edgecolor('green')
+ax2.plot("RILD", "DEPTH", data = df_filt, color = "red", lw = 0.5)
+ax2.set_xlim(0.2, 2000)
+ax2.semilogx()
+ax2.spines['top'].set_edgecolor('red')
+ax3.plot("RLL3", "DEPTH", data = df_filt, color = "blue", lw = 0.5)
+ax3.set_xlim(0.2, 2000)
+ax3.semilogx()
+ax3.spines['top'].set_edgecolor('blue')
+ax4.plot("RHOB", "DEPTH", data = df_filt, color = "red", lw =
+0.5)
+ax4.set_xlim(1, 3)
+ax4.spines['top'].set_edgecolor('red')
+ax5.plot("CNPOR", "DEPTH", data = df_filt, color = "blue", lw =
+0.5)
+ax5.set_xlim(45, -15)
+ax5.spines['top'].set_edgecolor('blue')
+#Paramters for fill the RHOB and CNPOR cross overs with yellow
+and otherwise green
+x = np.array(ax4.get_xlim())
+z = np.array(ax5.get_xlim())
+x1 = df_filt['RHOB']
+x2 = df_filt['CNPOR']
+nz=((x2-np.max(z))/(np.min(z)-np.max(z)))*(np.max(x)-
+np.min(x))+np.min(x)
+
+ax4.fill_betweenx(df_filt['DEPTH'], x1, nz, where=x1>=nz, interpolate=True, color='green') ax4.fill_betweenx(df_filt['DEPTH'], x1, nz, where=x1<=nz, interpolate=True, color='yellow')
+#Set up the common elements between the subplots for i, ax in enumerate(fig.axes):
+    ax.set_ylim(5000, 400) # Set the depth range
+    ax.xaxis.set_ticks_position("top")
+    ax.xaxis.set_label_position("top")
+    ax.set_xlabel(curve_names[i])
+    if (i == 3) or (i == 2):
+        ax.spines["top"].set_position(("axes", 1.08))
+    else:
+        ax.grid()
+#Hide tick labels on the y-axis
+for ax in [ax2, ax3]:
+    plt.setp(ax.get_yticklabels(), visible = False)
+#Reduce the space between each subplot
+fig.subplots_adjust(wspace = 0.05)
+### DATA ANALYSIS
+# Making Copy of the data frame
+new_df_filt=df_filt.copy()
+# Calculating Volume of Shale
+new_df_filt['Vsh'] = (new_df_filt.GR - new_df_filt.GR.min()) / (new_df_filt.GR.max() - new_df_filt.GR.min())
+# Print Volume of shale log
+print(new_df_filt['Vsh'])
+# Plotting Volume of shale in the log plot
+ax6.plot("Vsh", "DEPTH", data = new_df_filt, color = "green", lw = 0.5)
+ax6.fill_betweenx(df_filt['DEPTH'], 0, new_df_filt['Vsh'], facecolor='green')
+ax6.set_xlim(0, 1)
+ax6.spines['top'].set_edgecolor('green') plt.savefig('logplot.png', dpi=150)
+#Defining Cuts based on GR (volume of shale)
+
+new_df_filt['facies_gr'] = pd.cut(new_df_filt['Vsh'], bins=[0,0.15,1], labels=['clean', 'shaly'] )
+# Delineating Clean zones to check reservoir quality
+value=new_df_filt.loc[lambda new_df_filt:new_df_filt['GR']<25]
+# Function to determine Reservoir Quality
+def ReservoirQuality():
+    for i in value['DEPTH']:
+        print ('Reservoir Quality high at ' + str(i) )
+ReservoirQuality()
+# Delineating High Resistive zones to mark hydrocarbons shows
+hc=new_df_filt.loc[lambda new_df_filt:new_df_filt['RILD']>400]
+# Function to determine Hydrocarbon zones
+def Hydrocarbonshows():
+    for i in hc['DEPTH']:
+        print ('Hydrocarbons shows at ' + str(i) )
+Hydrocarbonshows()
+#Function to determine Hydrocarbon Height def Hydrocarbonheight():
+    height=hc['DEPTH'].max()-hc['DEPTH'].min()
+    return height
+print('Hydrocarbon Thickness is '+ str(Hydrocarbonheight()))
+# Function to Calculate Effective Stress
+def Effectivestress():
+matrix_density = 2.7
+fluid_density = 1
+phi_init = 0.40
+beta = 0.03
+# Calculate Porosity
+# in (g/cc)
+# in (g/cc)
+# initial porosity
+# compaction coefficient in 1/MPa
+new_df_filt['Porosity'] = (matrix_density - new_df_filt['RHOB']) / (matrix_density - fluid_density)
+    new_df_filt['Porosity'] =
+np.where(new_df_filt['Porosity']>=0, new_df_filt['Porosity'], 0)
+depth=new_df_filt['DEPTH'] density=new_df_filt['RHOB']
+density_water = 1. * np.ones_like(density) g = 9.8 # in (m/s2)
+
+    # Compute Sv(vertical stress) in MPa
+    new_df_filt['Sv(MPa)'] = integrate.cumtrapz(density * 9.81 *
+1000 / 1e6, depth, initial=0)
+# Compute Shydro(Hydrostatic Pressure) in MPa
+new_df_filt['Shydro(MPa)'] = integrate.cumtrapz(density_water * 9.81 * 1000 / 1e6, depth, initial=0)
+    # Compute Pp(Pore Pressure) in MPa
+new_df_filt['Pp(MPa)'] = new_df_filt['Sv(MPa)'][-len( new_df_filt['Porosity']):] - (np.log(new_df_filt['Porosity'] / phi_init) / -beta)
+    # Compute sigma_eff(Effective Pressure) in MPa
+new_df_filt['Sigma_Eff(MPa)'] = new_df_filt['Sv(MPa)'][- len(new_df_filt['Porosity']):] - new_df_filt['Pp(MPa)']
+#Plot For Vertical Stress, Hydrostatic Pressure, Pore Pressure,Effective Stress
+fig = plt.figure(figsize=(14,10))
+ax1 = fig.add_subplot(111)
+plt.plot(new_df_filt['Sv(MPa)'], depth, 'k', label="Vertical
+Stress")
+    plt.plot(new_df_filt['Shydro(MPa)'], depth, 'b',
+label="Hydrostatic Pressure")
+    plt.plot(new_df_filt['Pp(MPa)'], depth, 'r',
+label="PorePressure", linewidth=0.4)
+    plt.plot(new_df_filt['Sigma_Eff(MPa)'], depth, 'g',
+label="Effective Stress", linewidth=0.3);
+    plt.grid()
+    plt.legend(loc=1)
+    plt.xlabel("Pressure (MPa)", fontsize = '14')
+    plt.ylabel("Depth (m)", fontsize = '14')
+    ax1.set_yticks(np.arange(new_df_filt['DEPTH'].min(),
+new_df_filt['DEPTH'].max()+100, step=200))
+    ax1.set_xlim(0, new_df_filt['Sv(MPa)'].max()+5)
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+plt.show()
+Effectivestress()
+# Marking of Hydrocarbons zones on logs ax6.axhline(hc['DEPTH'].min(), color = 'r', linestyle = '-') ax6.axhline(hc['DEPTH'].max(), color = 'r', linestyle = '-')
+
+2. THE CODE FOR THE CSV FILE
+# import required libraries
+from scipy.stats import norm
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sb
+import pandas as pd
+df = pd.read_csv('poro_perm_data.csv')
+phi = df['Porosity (%)']
+k =  df['Permeability (mD)']
+plt.hist(phi, 10)
+plt.xlabel('Porosity (%)')
+plt.ylabel('n')
+plt.show()
+df = pd.read_csv('poro_perm_data.csv')
+phi = df['Porosity (%)']
+k =  df['Permeability (mD)']
+plt.hist(k, 10)
+plt.xlabel('Permeability (mD)')
+plt.ylabel('n')
+plt.show()
+import pylab
+import scipy.stats as stats
+stats.probplot(k, dist="norm", plot=pylab)
+pylab.show()
+# Anderson-Darling Test
+from scipy.stats import anderson
+# normality test for porosity, phi
+result = anderson(phi)
+print('Statistic: %.3f' % result.statistic)
+p=0
+# interpret results
+for i in range(len(result.critical_values)):
+    slevel, cvalues = result.significance_level[i],
+result.critical_values[i]
+if result.statistic < result.critical_values[i]:
+print('%.3f: %.3f, data looks normal (fail to reject H0)' % (slevel, cvalues))
+else:
+
+print('%.3f: %.3f, data does not look normal (reject H0)' % (slevel, cvalues))
+# Anderson-Darling Test
+from scipy.stats import anderson
+# normality test for permeability, k result = anderson(k) print('Statistic: %.3f' % result.statistic)
+p=0
+# interpret results
+for i in range(len(result.critical_values)):
+    slevel, cvalues =
+result.significance_level[i],result.critical_values[i]
+if result.statistic < result.critical_values[i]:
+print('%.3f: %.3f, data looks normal (fail to reject H0)' % (slevel, cvalues))
+else:
+print('%.3f: %.3f, data does not look normal (reject H0)' % (slevel, cvalues))
+# All the data does not look normal for both datasets (the
+permeability and porosity) and are considered statistically
+significant
+
+3. THE CODE FOR THE .TIF FILE
+# pip install opencv-python
+import cv2
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy import ndimage
+#read image and define pixel size
+img = cv2.imread("berea8bit.tif",0)
+plt.imshow(img)
+plt.title('Grey Image')
+plt.show()
+#denoise using cv2 NlMeans filtration
+dst = cv2.fastNlMeansDenoising(img,None,10,7,21) plt.subplot(121),plt.imshow(img),plt.title('Original Image') plt.subplot(122),plt.imshow(dst),plt.title('Filtered Image') plt.show()
+# plot a histogram
+plt.hist(img.flat, bins=100, range=(0,255))
+plt.title("Histogram")
+plt.show()
+#convert the grey image to binary through thresholding ret, thresh = cv2.threshold(dst, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+print(ret) # OTSU determined this to be the best threshold plt.imshow(thresh)
+plt.title('Threshold Image')
+plt.show()
+#some boundaries are ambiguous/faint.
+#residue pixels in the middle.
+#use morphological techniques (erode, etc.) to clean the code
+further and create a mask for the grains
+kernel = np.ones((3,3),np.uint8)
+eroded = cv2.erode(thresh,kernel,iterations = 1)
+plt.imshow(eroded)
+plt.title('Eroded Image')
+plt.show()
+dilated = cv2.dilate(eroded,kernel,iterations = 1)
+plt.imshow(dilated)
+plt.title('Dilated Image')
+
+plt.show()
+#convert float image to Boolean
+mask = dilated == 255
+print(mask)   # confirm the image is not inverted
+#cv2.imshow() not working
+#cv2.imshow("image", mask)
+#cv2.waitKey(0)
+#calculate the porsity by determining the area of the pores and grains
+bw = np.array(mask)
+area_im = np.size(bw) # total area of the image area_solid = np.count_nonzero(bw) # area of the grains porosity = ((area_im - area_solid)/area_im)*100
+print("The porosity of the sample is" , porosity)
+#the porosity is around 19
+WE ALSO USED A DIFFERENT CODE THAT UTILIZED CV TO EXTRACT THE POROSITY
+# the space between the
+# pip install opencv-python
+import cv2
+import matplotlib.pyplot as plt
+im = cv2.imread('berea8bit.tif')
+plt.show(im.all())
+plt.title("image")
+plt.show()
+th, im_th = cv2.threshold(im, 128, 255, cv2.THRESH_BINARY) print(th)
+cv2.imwrite('opencv_th.jpg', im_th)
+im1 = cv2.imread('opencv_th.jpg')
+plt.imshow(im1)
+plt.title("image")
+plt.show()
+th, im_th_tz = cv2.threshold(im, 128, 255, cv2.THRESH_TOZERO)
+cv2.imwrite("opencv_th_tz.jpg", im_th_tz)
+im2 = cv2.imread('opencv_th_tz.jpg') plt.imshow(im2)
+plt.title("image")
+ 
+plt.show()
+im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+th, im_gray_th_otsu = cv2.threshold(im_gray, 128, 192, cv2.THRESH_OTSU)
+cv2.imwrite('opencv_th_otsu.jpg', im_gray_th_otsu)
+im3 = cv2.imread('opencv_th_otsu.jpg')
+plt.imshow(im3)
+plt.title("image")
+plt.show()
+import numpy as np
+from PIL import Image
+# im_gray = np.array(Image.open('berea8bit.tif').convert('L'))
+print(type(im_gray))
+thresh = 128
+im_bool = im_gray > thresh
+print(im_bool)
+maxval = 255
+im_bin = (im_gray > thresh) * maxval
+print(im_bin)
+Image.fromarray(np.uint8(im_bin)).save('numpy_binarization.png')
+im4 = cv2.imread('numpy_binarization.png')
+plt.imshow(im4)
+plt.title("image")
+im_bin_keep = (im_gray > thresh) * im_gray print(im_bin_keep)
+Image.fromarray(np.uint8(im_bin_keep)).save('numpy_binarization_
+keep.png')
+im5 = cv2.imread('numpy_binarization_keep.png')
+plt.imshow(im5)
+plt.title("image")
+plt.show()
+im_bool = im_gray > 128
+im_dst = np.empty((*im_gray.shape, 3)) r, g, b = 255, 128, 32
+im_dst[:, :, 0] = im_bool * r im_dst[:, :, 1] = im_bool * g
+
+im_dst[:, :, 2] = im_bool * b Image.fromarray(np.uint8(im_dst)).save('numpy_binarization_color .png')
+plt.show()
+im5 = cv2.imread('numpy_binarization_color.png')
+plt.imshow(im5)
+plt.title("image")
+plt.show()
+im_bool = im_gray > 128
+im_dst = np.empty((*im_gray.shape, 3))
+r, g, b = 128, 160, 192
+im_dst[:, :, 0] = im_bool * r
+im_dst[:, :, 1] = ~im_bool * g
+im_dst[:, :, 2] = im_bool * b
+Image.fromarray(np.uint8(im_dst)).save('numpy_binarization_color
+2.png')
+im5 = cv2.imread('numpy_binarization_color2.png')
+plt.imshow(im5)
+plt.title("image")
+plt.show()
+# im = np.array(Image.open('berea8bit.tif'))
+im_th = np.empty_like(im)
+thresh = 128
+maxval = 255
+for i in range(3):
+    im_th[:, :, i] = (im[:, :, i] > thresh) * maxval
+Image.fromarray(np.uint8(im_th)).save('numpy_binarization_from_c olor.png')
+im6 = cv2.imread('numpy_binarization_from_color.png')
+plt.imshow(im6)
+plt.title("image")
+plt.show()
+l_thresh = [64, 128, 192]
+l_maxval = [64, 128, 192]
+for i, thresh, maxval in zip(range(3), l_thresh, l_maxval):
+    im_th[:, :, i] = (im[:, :, i] > thresh) * maxval
+Image.fromarray(np.uint8(im_th)).save('numpy_binarization_from_c
+olor2.png')
+im7 = cv2.imread('numpy_binarization_from_color2.png')
+plt.imshow(im7)
+
+plt.title("image")
+plt.show()
+# original vs edge image
+import cv2 as cv
+img = cv.imread('berea8bit.tif', 0)
+edges = cv.Canny(img, 100, 200)
+plt.subplot(121), plt.imshow(img, cmap='gray') plt.title('Original Image'), plt.xticks([]), plt.yticks([]) plt.subplot(122), plt.imshow(edges, cmap='gray') plt.title('Edge Image'), plt.xticks([]), plt.yticks([]) plt.show()
+#physical edges
+import cv2
+img = cv2.imread('berea8bit.tif')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+edges = cv2.Canny(gray, 100, 200)
+ret, th2 = cv2.threshold(edges, 100, 255, cv2.THRESH_BINARY_INV) cv2.imshow("img", th2)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
